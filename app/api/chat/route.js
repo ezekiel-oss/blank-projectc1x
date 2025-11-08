@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Simple chat API that forwards messages to OpenAI Chat Completions API.
+ * Chat API that forwards messages to Thesys C1 (OpenAI-compatible) Chat Completions API.
  * Expects body: { messages: Array<{role: 'system'|'user'|'assistant', content: string}> }
  */
 export async function POST(req) {
@@ -10,15 +10,15 @@ export async function POST(req) {
     const body = await req.json();
     const messages = Array.isArray(body?.messages) ? body.messages : [];
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.THESYS_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "Missing OPENAI_API_KEY" }),
+        JSON.stringify({ error: "Missing THESYS_API_KEY" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
     const payload = {
-      model: "gpt-4o-mini",
+      model: "c1-nightly",
       temperature: 0.7,
       messages: messages.map(m => ({
         role: m.role,
@@ -26,10 +26,10 @@ export async function POST(req) {
       }))
     };
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch("https://api.thesys.dev/v1/embed/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${process.env.THESYS_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
@@ -37,14 +37,15 @@ export async function POST(req) {
 
     if (!res.ok) {
       const text = await res.text();
-      return new Response(JSON.stringify({ error: text || "LLM error" }), {
+      return new Response(JSON.stringify({ error: text || "C1 error" }), {
         status: res.status,
         headers: { "Content-Type": "application/json" }
       });
     }
 
     const data = await res.json();
-    const reply = data?.choices?.[0]?.message?.content ?? "I couldn't generate a response.";
+    // C1 responses may contain UI spec; pass the raw assistant message content to the frontend.
+    const reply = data?.choices?.[0]?.message?.content ?? "No response from C1.";
     return new Response(JSON.stringify({ reply }), {
       status: 200,
       headers: { "Content-Type": "application/json" }
